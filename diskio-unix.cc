@@ -30,6 +30,8 @@
 #endif
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 #include "diskio.h"
 
@@ -66,6 +68,7 @@ int DiskIO::OpenForRead(void) {
             cerr << "The specified file does not exist!\n";
          realFilename = "";
          userFilename = "";
+         modelName = "";
          isOpen = 0;
          openForWrite = 0;
       } else {
@@ -86,6 +89,16 @@ int DiskIO::OpenForRead(void) {
             else
                isOpen = 1;
          } // if (fstat64()...)
+#if defined(__linux__) && !defined(EFI)
+         if (isOpen && realFilename.substr(0,4) == "/dev") {
+            ostringstream modelNameFilename;
+            modelNameFilename << "/sys/block" << realFilename.substr(4,512) << "/device/model";
+            ifstream modelNameFile(modelNameFilename.str().c_str());
+            if (modelNameFile.is_open()) {
+               getline(modelNameFile, modelName);
+            } // if
+         } // if
+#endif
       } // if/else
    } // if
 
@@ -176,6 +189,27 @@ int DiskIO::GetBlockSize(void) {
 
    return (blockSize);
 } // DiskIO::GetBlockSize()
+
+// Returns the physical block size of the device, if possible. If this is
+// not supported, or if an error occurs, this function returns 0.
+// TODO: Get this working in more OSes than Linux.
+int DiskIO::GetPhysBlockSize(void) {
+   int err = -1, physBlockSize = 0;
+
+   // If disk isn't open, try to open it....
+   if (!isOpen) {
+      OpenForRead();
+   } // if
+
+   if (isOpen) {
+#if defined __linux__ && !defined(EFI)
+      err = ioctl(fd, BLKPBSZGET, &physBlockSize);
+#endif
+   } // if (isOpen)
+   if (err == -1)
+      physBlockSize = 0;
+   return (physBlockSize);
+} // DiskIO::GetPhysBlockSize(void)
 
 // Returns the number of heads, according to the kernel, or 255 if the
 // correct value can't be determined.

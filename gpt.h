@@ -68,8 +68,9 @@ protected:
    MBRData protectiveMBR;
    string device; // device filename
    DiskIO myDisk;
-   uint32_t blockSize; // device block size
-   uint64_t diskSize; // size of device, in blocks
+   uint32_t blockSize; // device logical block size
+   uint32_t physBlockSize; // device physical block size (or 0 if it can't be determined)
+   uint64_t diskSize; // size of device, in logical blocks
    GPTValidity state; // is GPT valid?
    int justLooking; // Set to 1 if program launched with "-l" or if read-only
    int mainCrcOk;
@@ -140,6 +141,7 @@ public:
 
    // Adjust GPT structures WITHOUT user interaction...
    int SetGPTSize(uint32_t numEntries, int fillGPTSectors = 1);
+   int MoveMainTable(uint64_t pteSector);
    void BlankPartitions(void);
    int DeletePartition(uint32_t partNum);
    uint32_t CreatePartition(uint32_t partNum, uint64_t startSector, uint64_t endSector);
@@ -162,6 +164,8 @@ public:
    int GetPartRange(uint32_t* low, uint32_t* high);
    int FindFirstFreePart(void);
    uint32_t GetNumParts(void) {return mainHeader.numParts;}
+   uint64_t GetTableSizeInSectors(void) {return (((numParts * GPT_SIZE) / blockSize) +
+                                                 (((numParts * GPT_SIZE) % blockSize) != 0)); }
    uint64_t GetMainHeaderLBA(void) {return mainHeader.currentLBA;}
    uint64_t GetSecondHeaderLBA(void) {return secondHeader.currentLBA;}
    uint64_t GetMainPartsLBA(void) {return mainHeader.partitionEntriesLBA;}
@@ -176,6 +180,7 @@ public:
 
    // Find information about free space
    uint64_t FindFirstAvailable(uint64_t start = 0);
+   uint64_t FindFirstUsedLBA(void);
    uint64_t FindFirstInLargest(void);
    uint64_t FindLastAvailable();
    uint64_t FindLastInFree(uint64_t start);
